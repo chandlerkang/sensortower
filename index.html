@@ -59,7 +59,7 @@
   .charthead h2{font-size:15px;font-weight:600;margin:0}
   .chartwrap{position:relative;height:380px}
   .note{font-size:11.5px;color:var(--hint);margin-top:14px;line-height:1.6}
-  .hide{display:none}
+  .hide{display:none!important}
   .empty{background:var(--surface);border:1px dashed var(--line2);border-radius:var(--radius);padding:40px 24px;text-align:center;margin:18px 0}
   .empty h3{margin:0 0 8px;font-size:16px}
   .empty p{margin:0 auto;max-width:560px;color:var(--muted);font-size:13px;line-height:1.7}
@@ -317,7 +317,7 @@ function drawChart(labels,series){
     interaction:{mode:"index",intersect:false},
     plugins:{legend:{position:"bottom",labels:{font:{family:"Pretendard",size:12},usePointStyle:true,pointStyle:"line"}},
       tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${fmtVal(c.parsed.y)}`}}},
-    scales:{x:{grid:{display:false},ticks:{font:{family:"Pretendard",size:11},maxRotation:0,autoSkip:true,maxTicksLimit:12}},
+    scales:{x:{grid:{display:false},ticks:{font:{family:"Pretendard",size:11},maxRotation:0,autoSkip:true,maxTicksLimit:9,callback:function(v){const s=this.getLabelForValue(v);if(!s)return s;if(s.length===10)return s.slice(5);if(s.length===7)return s.slice(2);return s;}}},
       y:{grid:{color:"#eef0f3"},ticks:{font:{family:"Pretendard",size:11},callback:v=>{if(sel.metric==="revenue")return fmtMoney(v);if(sel.metric==="rpd"||sel.metric==="arpdau")return"$"+v.toFixed(2);return v>=1000?(v/1000)+"K":v;}}}}}};
   if(chart)chart.destroy(); chart=new Chart(document.getElementById("chart"),cfg);
 }
