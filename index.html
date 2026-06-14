@@ -63,6 +63,11 @@
   .empty{background:var(--surface);border:1px dashed var(--line2);border-radius:var(--radius);padding:40px 24px;text-align:center;margin:18px 0}
   .empty h3{margin:0 0 8px;font-size:16px}
   .empty p{margin:0 auto;max-width:560px;color:var(--muted);font-size:13px;line-height:1.7}
+  .modal-overlay{position:fixed;inset:0;background:rgba(20,22,28,.45);display:flex;align-items:center;justify-content:center;z-index:50;padding:20px}
+  .modal{background:var(--surface);border-radius:var(--radius);padding:20px 22px;width:320px;max-width:100%;box-shadow:0 10px 40px rgba(0,0,0,.2)}
+  .modal h3{margin:0 0 4px;font-size:15px}
+  .modal input[type=password]{width:100%;height:36px;padding:0 10px;border:1px solid var(--line2);border-radius:var(--radius-sm);font-size:14px;font-family:inherit}
+  .modal input[type=password]:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
   @media(max-width:760px){.cards{grid-template-columns:repeat(2,1fr)}.chartwrap{height:320px}}
 </style>
 </head>
@@ -79,11 +84,16 @@
     </div>
     <div style="display:flex;gap:8px">
       <button class="btn" id="exportBtn">현재 조건 CSV 내보내기</button>
+      <button class="btn" id="adminBtn">관리</button>
     </div>
   </header>
 
-  <!-- DATA SOURCE -->
-  <div class="card pad">
+  <!-- ADMIN PANEL (관리자 전용 · 데이터 연동) -->
+  <div class="card pad hide" id="adminPanel">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <strong style="font-size:14px">관리자 · 데이터 연동</strong>
+      <button class="btn" id="adminClose">닫기</button>
+    </div>
     <div class="src">
       <div class="status"><span class="dot" id="srcDot"></span><span id="srcStatus">연동 확인 중…</span></div>
       <div class="grow"><input type="text" id="urlInput" placeholder="CSV 파일 링크 또는 CSV가 든 폴더 링크를 붙여넣기"></div>
@@ -97,11 +107,25 @@
     </div>
   </div>
 
+  <!-- ADMIN LOGIN MODAL -->
+  <div id="adminModal" class="modal-overlay hide">
+    <div class="modal">
+      <h3>관리자 로그인</h3>
+      <p style="margin:0 0 12px;font-size:12.5px;color:var(--muted)">데이터 연동을 변경하려면 비밀번호를 입력하세요.</p>
+      <input type="password" id="adminPass" placeholder="비밀번호">
+      <div id="adminErr" style="color:var(--danger);font-size:12px;height:16px;margin:6px 0"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn" id="adminCancel">취소</button>
+        <button class="btn primary" id="adminOk">확인</button>
+      </div>
+    </div>
+  </div>
+
   <!-- EMPTY STATE -->
   <div class="empty hide" id="emptyState">
     <h3>아직 연동된 데이터가 없습니다</h3>
-    <p>위 입력칸에 <b>db_daily.csv</b> 파일 링크(또는 그 파일이 든 폴더 링크)를 붙여넣고 <b>연동</b>을 누르세요.
-    한 번 연동하면 계속 최신 데이터가 자동으로 표시됩니다. SharePoint에 HTML과 CSV를 같은 폴더에 올린 경우, 그 페이지를 열기만 하면 자동으로 연결됩니다.</p>
+    <p>관리자가 우측 상단 <b>관리</b> 버튼에서 데이터를 연동하면 화면이 표시됩니다.
+    HTML과 db_daily.csv를 같은 위치(폴더)에 올린 경우에는 별도 설정 없이 자동으로 연결됩니다.</p>
   </div>
 
   <!-- CONTROLS -->
@@ -161,6 +185,10 @@
 const DAILY_FILE="db_daily.csv";       // 같은 폴더 자동 연동 시 사용하는 파일명
 const MONTHLY_FILE="db_monthly.csv";
 const LS_KEY="st_dashboard_data_url";  // 연동 링크 저장 키
+// ▼▼ 관리자 비밀번호 — 배포 전 반드시 바꾸세요. (정적 페이지 특성상 '실수/casual 차단'용 잠금입니다) ▼▼
+const ADMIN_PASSWORD="changeme1234";
+let adminUnlocked=false;
+// ▲▲▲
 const OWN_GAME="블루 아카이브";
 const PALETTE=["#2f6f6a","#c0563a","#3768a8","#9a6cb0","#c98a1e","#4b8b3b","#b34a6e","#5a5f6b"];
 
@@ -433,7 +461,31 @@ document.getElementById("fileInput").onchange=e=>{const f=e.target.files[0];if(!
 // 드래그&드롭(임시 보기)
 const wrap=document.querySelector(".wrap");
 ["dragover","drop"].forEach(ev=>wrap.addEventListener(ev,e=>e.preventDefault()));
-wrap.addEventListener("drop",e=>{const f=e.dataTransfer.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{ingest(r.result);afterLoad();setStatus("드롭 파일: "+f.name+" (저장 안 됨)","ok");}catch(err){setStatus("읽기 실패: "+err.message,"err");}};r.readAsText(f,"utf-8");});
+wrap.addEventListener("drop",e=>{if(!adminUnlocked)return;const f=e.dataTransfer.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{ingest(r.result);afterLoad();setStatus("드롭 파일: "+f.name+" (저장 안 됨)","ok");}catch(err){setStatus("읽기 실패: "+err.message,"err");}};r.readAsText(f,"utf-8");});
+
+// ===== 관리자 영역 (비밀번호 잠금) =====
+function showAdmin(s){document.getElementById("adminPanel").classList.toggle("hide",!s);}
+function openAdminFlow(){
+  if(adminUnlocked){showAdmin(true);return;}
+  document.getElementById("adminErr").textContent="";
+  document.getElementById("adminPass").value="";
+  document.getElementById("adminModal").classList.remove("hide");
+  setTimeout(()=>document.getElementById("adminPass").focus(),50);
+}
+function tryAdmin(){
+  if(document.getElementById("adminPass").value===ADMIN_PASSWORD){
+    adminUnlocked=true;
+    document.getElementById("adminModal").classList.add("hide");
+    showAdmin(true);
+  }else{
+    document.getElementById("adminErr").textContent="비밀번호가 올바르지 않습니다.";
+  }
+}
+document.getElementById("adminBtn").onclick=openAdminFlow;
+document.getElementById("adminOk").onclick=tryAdmin;
+document.getElementById("adminCancel").onclick=()=>document.getElementById("adminModal").classList.add("hide");
+document.getElementById("adminClose").onclick=()=>showAdmin(false);
+document.getElementById("adminPass").addEventListener("keydown",e=>{if(e.key==="Enter")tryAdmin();});
 
 boot();
 </script>
