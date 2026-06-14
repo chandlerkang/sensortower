@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>센서타워 경쟁게임 지표 대시보드</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root{
+    --bg:#f4f5f7; --surface:#ffffff; --ink:#1b1d23; --muted:#6b7280; --hint:#9aa1ad;
+    --line:#e6e8ec; --line2:#d4d8df; --accent:#2f6f6a; --accent-soft:#e3f0ef; --accent-ink:#1d4a47;
+    --danger:#b4453c; --pos:#2f7d4f; --radius:12px; --radius-sm:8px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);
+    font-family:"Pretendard Variable",Pretendard,system-ui,sans-serif;-webkit-font-smoothing:antialiased;font-size:14px;line-height:1.55}
+  .wrap{max-width:1180px;margin:0 auto;padding:24px 20px 56px}
+  header.top{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:18px;flex-wrap:wrap}
+  .title{display:flex;align-items:center;gap:12px}
+  .title .mark{width:38px;height:38px;border-radius:10px;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:18px;letter-spacing:-.5px}
+  .title h1{font-size:19px;font-weight:700;margin:0;letter-spacing:-.4px}
+  .title p{margin:2px 0 0;font-size:12px;color:var(--hint)}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius)}
+  .pad{padding:16px 18px}
+  .src{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:13px}
+  .src .grow{flex:1;min-width:220px}
+  .src input[type=text]{width:100%;height:34px;padding:0 10px;border:1px solid var(--line2);border-radius:var(--radius-sm);font-size:13px;font-family:inherit;background:#fff}
+  .src input[type=text]:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+  .btn{height:34px;padding:0 14px;border:1px solid var(--line2);background:#fff;border-radius:var(--radius-sm);font-size:13px;font-weight:500;cursor:pointer;color:var(--ink);display:inline-flex;align-items:center;gap:6px;font-family:inherit;white-space:nowrap}
+  .btn:hover{background:#f7f8f9;border-color:var(--accent)}
+  .btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .btn.primary:hover{background:#255853}
+  .status{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--hint);display:inline-block}
+  .dot.ok{background:var(--pos)} .dot.warn{background:#d8932f} .dot.err{background:var(--danger)}
+  .controls{display:grid;grid-template-columns:1fr;gap:16px;margin:16px 0}
+  .ctl-label{font-size:12px;font-weight:600;color:var(--muted);margin-bottom:8px;letter-spacing:-.2px}
+  .seg{display:inline-flex;border:1px solid var(--line2);border-radius:var(--radius-sm);overflow:hidden;flex-wrap:wrap}
+  .seg button{border:none;background:#fff;padding:7px 13px;font-size:13px;cursor:pointer;color:var(--ink);font-family:inherit;border-right:1px solid var(--line);line-height:1}
+  .seg button:last-child{border-right:none}
+  .seg button.on{background:var(--accent);color:#fff}
+  .chips{display:flex;flex-wrap:wrap;gap:7px;align-items:center}
+  .chip{font-size:12.5px;padding:5px 11px;border-radius:999px;border:1px solid var(--line2);background:#fff;cursor:pointer;user-select:none;color:var(--muted);transition:.12s}
+  .chip.on{background:var(--accent-soft);border-color:var(--accent);color:var(--accent-ink);font-weight:600}
+  .chip.own{border-style:dashed}
+  .quick{font-size:12px;color:var(--accent);cursor:pointer;margin-left:4px}
+  .quick:hover{text-decoration:underline}
+  .row{display:flex;gap:22px;flex-wrap:wrap;align-items:flex-start}
+  .row>div{min-width:120px}
+  .daterow{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .daterow input[type=date]{height:32px;border:1px solid var(--line2);border-radius:var(--radius-sm);padding:0 8px;font-family:inherit;font-size:13px}
+  .cards{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:18px 0}
+  .metric{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px}
+  .metric .k{font-size:12px;color:var(--muted)}
+  .metric .v{font-size:23px;font-weight:700;margin-top:3px;letter-spacing:-.5px}
+  .metric .v.pos{color:var(--pos)} .metric .v.neg{color:var(--danger)}
+  .charthead{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;flex-wrap:wrap;gap:8px}
+  .charthead h2{font-size:15px;font-weight:600;margin:0}
+  .chartwrap{position:relative;height:380px}
+  .note{font-size:11.5px;color:var(--hint);margin-top:14px;line-height:1.6}
+  .hide{display:none}
+  .empty{background:var(--surface);border:1px dashed var(--line2);border-radius:var(--radius);padding:40px 24px;text-align:center;margin:18px 0}
+  .empty h3{margin:0 0 8px;font-size:16px}
+  .empty p{margin:0 auto;max-width:560px;color:var(--muted);font-size:13px;line-height:1.7}
+  @media(max-width:760px){.cards{grid-template-columns:repeat(2,1fr)}.chartwrap{height:320px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <div class="title">
+      <div class="mark">ST</div>
+      <div>
+        <h1>센서타워 경쟁게임 지표 대시보드</h1>
+        <p id="meta">데이터 연동을 설정해 주세요</p>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn" id="exportBtn">현재 조건 CSV 내보내기</button>
+    </div>
+  </header>
+
+  <!-- DATA SOURCE -->
+  <div class="card pad">
+    <div class="src">
+      <div class="status"><span class="dot" id="srcDot"></span><span id="srcStatus">연동 확인 중…</span></div>
+      <div class="grow"><input type="text" id="urlInput" placeholder="CSV 파일 링크 또는 CSV가 든 폴더 링크를 붙여넣기"></div>
+      <button class="btn primary" id="urlLoad">연동</button>
+      <button class="btn" id="urlClear">연동 해제</button>
+      <label class="btn" for="fileInput">임시 파일 열기</label>
+      <input type="file" id="fileInput" accept=".csv" class="hide">
+    </div>
+    <div style="font-size:11.5px;color:var(--hint);margin-top:8px" id="dropHint">
+      한 번 연동하면 이 브라우저에 링크가 기억되어, 다음부터는 열 때마다 자동으로 최신 CSV를 불러옵니다. · HTML과 db_daily.csv를 같은 폴더에 두면 링크 없이도 자동 연동됩니다. · CSV를 끌어다 놓아 임시로 볼 수도 있습니다.
+    </div>
+  </div>
+
+  <!-- EMPTY STATE -->
+  <div class="empty hide" id="emptyState">
+    <h3>아직 연동된 데이터가 없습니다</h3>
+    <p>위 입력칸에 <b>db_daily.csv</b> 파일 링크(또는 그 파일이 든 폴더 링크)를 붙여넣고 <b>연동</b>을 누르세요.
+    한 번 연동하면 계속 최신 데이터가 자동으로 표시됩니다. SharePoint에 HTML과 CSV를 같은 폴더에 올린 경우, 그 페이지를 열기만 하면 자동으로 연결됩니다.</p>
+  </div>
+
+  <!-- CONTROLS -->
+  <div class="card pad controls hide" id="controls">
+    <div>
+      <div class="ctl-label">게임 선택 <span class="quick" id="selAll">전체</span> <span class="quick" id="selNone">해제</span> <span class="quick" id="selOwn">자사만</span></div>
+      <div class="chips" id="gameChips"></div>
+    </div>
+    <div class="row">
+      <div>
+        <div class="ctl-label">플랫폼</div>
+        <div class="seg" id="platSeg">
+          <button data-v="iOS">iOS</button><button data-v="AOS">AOS</button><button data-v="SUM" class="on">합산</button>
+        </div>
+      </div>
+      <div>
+        <div class="ctl-label">지표</div>
+        <div class="seg" id="metricSeg">
+          <button data-v="dau" class="on">DAU</button><button data-v="revenue">매출($)</button><button data-v="downloads">다운로드</button><button data-v="rpd">RPD</button><button data-v="arpdau">ARPDAU</button><button data-v="mau">MAU</button>
+        </div>
+      </div>
+      <div>
+        <div class="ctl-label">집계 단위</div>
+        <div class="seg" id="unitSeg">
+          <button data-v="day" class="on">일간</button><button data-v="week">주간</button><button data-v="month">월간</button>
+        </div>
+      </div>
+    </div>
+    <div>
+      <div class="ctl-label">기간</div>
+      <div class="daterow">
+        <div class="seg" id="rangeSeg">
+          <button data-v="30">최근 30일</button><button data-v="90" class="on">최근 90일</button><button data-v="180">최근 180일</button><button data-v="all">전체</button>
+        </div>
+        <span style="color:var(--hint)">|</span>
+        <input type="date" id="fromDate"><span style="color:var(--hint)">~</span><input type="date" id="toDate">
+      </div>
+    </div>
+  </div>
+
+  <!-- SUMMARY -->
+  <div class="cards hide" id="cards"></div>
+
+  <!-- CHART -->
+  <div class="card pad hide" id="chartCard">
+    <div class="charthead">
+      <h2 id="chartTitle">DAU · 일간 추이</h2>
+      <span style="font-size:11.5px;color:var(--hint)" id="chartSub"></span>
+    </div>
+    <div class="chartwrap"><canvas id="chart"></canvas></div>
+    <div class="note" id="footNote"></div>
+  </div>
+
+</div>
+
+<script>
+const DAILY_FILE="db_daily.csv";       // 같은 폴더 자동 연동 시 사용하는 파일명
+const MONTHLY_FILE="db_monthly.csv";
+const LS_KEY="st_dashboard_data_url";  // 연동 링크 저장 키
+const OWN_GAME="블루 아카이브";
+const PALETTE=["#2f6f6a","#c0563a","#3768a8","#9a6cb0","#c98a1e","#4b8b3b","#b34a6e","#5a5f6b"];
+
+function parseCSV(text){
+  const lines=text.replace(/^\uFEFF/,"").split(/\r?\n/).filter(l=>l.trim()!=="");
+  const head=lines[0].split(",").map(s=>s.trim());
+  return {head,rows:lines.slice(1).map(l=>l.split(","))};
+}
+function num(v){if(v===undefined)return null;v=(""+v).trim();if(v===""||v==="-")return null;const n=parseFloat(v);return isNaN(n)?null:n;}
+
+let DAILY=[];   // {date,game,platform,revenue,dau,downloads}
+let MONTHLY=[];
+let GAMES=[];
+let sel={games:new Set(),plat:"SUM",metric:"dau",unit:"day",range:"90",from:null,to:null};
+let chart=null;
+
+function ingest(text){
+  const {head,rows}=parseCSV(text);
+  const h=head.map(s=>s.toLowerCase());
+  if(h.includes("date")){
+    const i={date:h.indexOf("date"),game:h.indexOf("game"),plat:h.indexOf("platform"),rev:h.indexOf("revenue_usd"),dau:h.indexOf("dau"),dl:h.indexOf("downloads")};
+    DAILY=rows.map(r=>({date:r[i.date]&&r[i.date].trim(),game:r[i.game]&&r[i.game].trim(),platform:r[i.plat]&&r[i.plat].trim(),revenue:num(r[i.rev]),dau:num(r[i.dau]),downloads:num(r[i.dl])})).filter(x=>x.date&&x.game&&x.platform);
+    return "daily";
+  }else if(h.includes("year_month")){
+    const i={ym:h.indexOf("year_month"),game:h.indexOf("game"),plat:h.indexOf("platform"),mau:h.indexOf("mau"),rev:h.indexOf("revenue_usd"),dl:h.indexOf("downloads")};
+    MONTHLY=rows.map(r=>({ym:r[i.ym]&&r[i.ym].trim(),game:r[i.game]&&r[i.game].trim(),platform:r[i.plat]&&r[i.plat].trim(),mau:num(r[i.mau]),revenue:num(r[i.rev]),downloads:num(r[i.dl])})).filter(x=>x.ym&&x.game);
+    return "monthly";
+  }
+  throw new Error("알 수 없는 CSV 형식");
+}
+
+function refreshGames(){
+  const s=new Set(); DAILY.forEach(d=>s.add(d.game)); MONTHLY.forEach(d=>s.add(d.game));
+  GAMES=[...s].sort((a,b)=>a===OWN_GAME?-1:b===OWN_GAME?1:a.localeCompare(b,"ko"));
+  if(sel.games.size===0) GAMES.slice(0,2).forEach(g=>sel.games.add(g));
+  else sel.games=new Set([...sel.games].filter(g=>s.has(g)));
+  if(sel.games.size===0&&GAMES.length) sel.games.add(GAMES[0]);
+}
+
+function allDates(){return [...new Set(DAILY.map(d=>d.date))].sort();}
+function initDates(){
+  const ds=allDates(); if(!ds.length)return;
+  document.getElementById("fromDate").min=ds[0]; document.getElementById("fromDate").max=ds[ds.length-1];
+  document.getElementById("toDate").min=ds[0]; document.getElementById("toDate").max=ds[ds.length-1];
+  applyRangePreset();
+}
+function applyRangePreset(){
+  const ds=allDates(); if(!ds.length)return; const last=ds[ds.length-1];
+  let from=ds[0];
+  if(sel.range!=="all"){const n=parseInt(sel.range);const d=new Date(last);d.setDate(d.getDate()-(n-1));from=d.toISOString().slice(0,10);if(from<ds[0])from=ds[0];}
+  sel.from=from; sel.to=last;
+  document.getElementById("fromDate").value=from; document.getElementById("toDate").value=last;
+}
+function weekStart(dateStr){const d=new Date(dateStr+"T00:00:00");const wd=(d.getDay()+6)%7;d.setDate(d.getDate()-wd);return d.toISOString().slice(0,10);}
+function bucketKey(dateStr){if(sel.unit==="day")return dateStr;if(sel.unit==="week")return weekStart(dateStr);return dateStr.slice(0,7);}
+
+const ADDITIVE=new Set(["revenue","downloads"]);
+function dayValue(game,dateStr){
+  const rs=DAILY.filter(d=>d.game===game&&d.date===dateStr);
+  const pick=p=>rs.find(r=>r.platform===p);
+  let rev=null,dau=null,dl=null;
+  if(sel.plat==="SUM"){
+    const a=pick("iOS"),b=pick("AOS");
+    rev=sumN(a&&a.revenue,b&&b.revenue); dau=sumN(a&&a.dau,b&&b.dau); dl=sumN(a&&a.downloads,b&&b.downloads);
+  }else{const r=pick(sel.plat); if(r){rev=r.revenue;dau=r.dau;dl=r.downloads;}}
+  return {rev,dau,dl};
+}
+function sumN(a,b){if((a===null||a===undefined)&&(b===null||b===undefined))return null;return (a||0)+(b||0);}
+
+function buildSeries(){
+  const inRange=d=>d.date>=sel.from&&d.date<=sel.to;
+  const dates=[...new Set(DAILY.filter(inRange).map(d=>d.date))].sort();
+  if(sel.metric==="mau"){
+    sel.unit="month"; markUnit();
+    const months=[...new Set(MONTHLY.map(m=>m.ym))].filter(m=>{const md=m+"-01";return md>=sel.from.slice(0,7)+"-01"&&md<=sel.to.slice(0,7)+"-01";}).sort();
+    const labels=months;
+    const series=[...sel.games].map(g=>({game:g,data:labels.map(ym=>{
+      const rs=MONTHLY.filter(m=>m.game===g&&m.ym===ym);
+      if(!rs.length)return null;
+      if(sel.plat==="SUM")return rs.reduce((s,r)=>s+(r.mau||0),0)||null;
+      const r=rs.find(x=>x.platform===sel.plat);return r?r.mau:null;
+    })}));
+    return {labels,series};
+  }
+  const labels=[...new Set(dates.map(bucketKey))].sort();
+  const series=[...sel.games].map(g=>{
+    const acc={}; labels.forEach(l=>acc[l]={rev:0,dau:0,dl:0,nrev:0,ndau:0,ndl:0});
+    dates.forEach(dt=>{const k=bucketKey(dt);const v=dayValue(g,dt);
+      if(v.rev!==null){acc[k].rev+=v.rev;acc[k].nrev++;}
+      if(v.dau!==null){acc[k].dau+=v.dau;acc[k].ndau++;}
+      if(v.dl!==null){acc[k].dl+=v.dl;acc[k].ndl++;}
+    });
+    const data=labels.map(l=>{const a=acc[l];
+      switch(sel.metric){
+        case"revenue":return a.nrev?a.rev:null;
+        case"downloads":return a.ndl?a.dl:null;
+        case"dau":return a.ndau?a.dau/a.ndau:null;
+        case"rpd":return (a.ndl&&a.dl>0)?a.rev/a.dl:null;
+        case"arpdau":return (a.ndau&&a.dau>0)?a.rev/a.dau:null;
+      }});
+    return {game:g,data};
+  });
+  return {labels,series};
+}
+function markUnit(){document.querySelectorAll("#unitSeg button").forEach(b=>b.classList.toggle("on",b.dataset.v===sel.unit));}
+
+const METRIC_LABEL={dau:"DAU",revenue:"매출($)",downloads:"다운로드",rpd:"RPD($)",arpdau:"ARPDAU($)",mau:"MAU"};
+const UNIT_LABEL={day:"일간",week:"주간",month:"월간"};
+function fmtMoney(v){if(v===null)return"-";if(Math.abs(v)>=1e6)return"$"+(v/1e6).toFixed(2)+"M";if(Math.abs(v)>=1e3)return"$"+(v/1e3).toFixed(1)+"K";return"$"+v.toFixed(v<10?2:0);}
+function fmtNum(v){if(v===null)return"-";return Math.round(v).toLocaleString("en-US");}
+function fmtVal(v){if(v===null)return"-";if(sel.metric==="revenue")return fmtMoney(v);if(sel.metric==="rpd"||sel.metric==="arpdau")return"$"+v.toFixed(3);return fmtNum(v);}
+
+function render(){
+  if(sel.metric==="mau"&&sel.unit!=="month"){sel.unit="month";markUnit();}
+  const {labels,series}=buildSeries();
+  drawChart(labels,series);
+  drawCards(labels,series);
+  document.getElementById("chartTitle").textContent=`${METRIC_LABEL[sel.metric]} · ${UNIT_LABEL[sel.unit]} 추이`;
+  document.getElementById("chartSub").textContent=`${sel.from} ~ ${sel.to} · ${sel.plat==="SUM"?"iOS+AOS 합산":sel.plat} · 게임 ${sel.games.size}종`;
+  footNote();
+}
+function drawChart(labels,series){
+  const ds=series.map((s,i)=>({label:s.game,data:s.data,borderColor:PALETTE[i%PALETTE.length],backgroundColor:PALETTE[i%PALETTE.length],
+    borderWidth:2,pointRadius:labels.length>60?0:2.5,pointHoverRadius:4,tension:.25,spanGaps:false}));
+  const cfg={type:"line",data:{labels,datasets:ds},options:{responsive:true,maintainAspectRatio:false,
+    interaction:{mode:"index",intersect:false},
+    plugins:{legend:{position:"bottom",labels:{font:{family:"Pretendard",size:12},usePointStyle:true,pointStyle:"line"}},
+      tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${fmtVal(c.parsed.y)}`}}},
+    scales:{x:{grid:{display:false},ticks:{font:{family:"Pretendard",size:11},maxRotation:0,autoSkip:true,maxTicksLimit:12}},
+      y:{grid:{color:"#eef0f3"},ticks:{font:{family:"Pretendard",size:11},callback:v=>{if(sel.metric==="revenue")return fmtMoney(v);if(sel.metric==="rpd"||sel.metric==="arpdau")return"$"+v.toFixed(2);return v>=1000?(v/1000)+"K":v;}}}}}};
+  if(chart)chart.destroy(); chart=new Chart(document.getElementById("chart"),cfg);
+}
+function drawCards(labels,series){
+  const combined=labels.map((l,idx)=>{let s=0,n=0;series.forEach(se=>{if(se.data[idx]!==null){s+=se.data[idx];n++;}});return {l,v:n?s:null,n};});
+  const valid=combined.filter(c=>c.v!==null);
+  const additive=ADDITIVE.has(sel.metric);
+  let c1k,c1v,c2k,c2v;
+  if(additive){
+    const total=valid.reduce((a,c)=>a+c.v,0);
+    c1k="기간 합계";c1v=fmtVal(total);
+    c2k="구간 평균";c2v=fmtVal(valid.length?total/valid.length:null);
+  }else{
+    const avg=valid.length?valid.reduce((a,c)=>a+c.v,0)/valid.length:null;
+    c1k="구간 평균(선택합)";c1v=fmtVal(avg);
+    c2k="데이터 구간 수";c2v=valid.length.toLocaleString();
+  }
+  const peak=valid.reduce((m,c)=>c.v>m.v?c:m,{v:-Infinity,l:"-"});
+  let trend="-",cls="";
+  if(valid.length>=2){const a=valid[valid.length-2].v,b=valid[valid.length-1].v;if(a){const p=(b-a)/Math.abs(a)*100;trend=(p>=0?"+":"")+p.toFixed(1)+"%";cls=p>=0?"pos":"neg";}}
+  const cards=[
+    {k:c1k,v:c1v},{k:c2k,v:c2v},
+    {k:"최고값 ("+(additive?"구간합":"선택합")+")",v:peak.v>-Infinity?fmtVal(peak.v):"-"},
+    {k:"직전 구간 대비",v:trend,cls}
+  ];
+  document.getElementById("cards").innerHTML=cards.map(c=>`<div class="metric"><div class="k">${c.k}</div><div class="v ${c.cls||""}">${c.v}</div></div>`).join("");
+}
+function footNote(){
+  const notes=[];
+  notes.push("집계 규칙: 매출·다운로드=합계, DAU=구간 평균, RPD=합계매출÷합계다운로드, ARPDAU=합계매출÷합계DAU.");
+  if(sel.metric==="rpd")notes.push("RPD는 다운로드 데이터가 있는 구간만 표시됩니다.");
+  if(sel.metric==="mau"){notes.push("MAU는 월간 전용 지표로, db_monthly.csv 값을 사용합니다.");if(!MONTHLY.length)notes.push("월간 파일(db_monthly.csv)이 연동되지 않아 비어 있습니다.");}
+  if([...sel.games].includes("스타 세이비어")&&sel.metric==="dau"&&sel.plat!=="AOS")notes.push("스타 세이비어 iOS DAU는 센서타워 미제공으로 비어 있습니다.");
+  document.getElementById("footNote").innerHTML=notes.join("<br>");
+}
+
+function rebuildGameChips(){
+  const box=document.getElementById("gameChips"); box.innerHTML="";
+  GAMES.forEach(g=>{const c=document.createElement("span");c.className="chip"+(g===OWN_GAME?" own":"")+(sel.games.has(g)?" on":"");c.textContent=g===OWN_GAME?g+" (자사)":g;
+    c.onclick=()=>{if(sel.games.has(g))sel.games.delete(g);else sel.games.add(g);if(sel.games.size===0)sel.games.add(g);rebuildGameChips();render();};box.appendChild(c);});
+}
+
+function bindSeg(id,key,cb){document.querySelectorAll("#"+id+" button").forEach(b=>b.onclick=()=>{
+  document.querySelectorAll("#"+id+" button").forEach(x=>x.classList.remove("on"));b.classList.add("on");sel[key]=b.dataset.v;if(cb)cb();render();});}
+bindSeg("platSeg","plat");
+bindSeg("metricSeg","metric");
+bindSeg("unitSeg","unit");
+bindSeg("rangeSeg","range",applyRangePreset);
+document.getElementById("selAll").onclick=()=>{sel.games=new Set(GAMES);rebuildGameChips();render();};
+document.getElementById("selNone").onclick=()=>{sel.games=new Set([GAMES[0]]);rebuildGameChips();render();};
+document.getElementById("selOwn").onclick=()=>{sel.games=new Set([OWN_GAME]);rebuildGameChips();render();};
+document.getElementById("fromDate").onchange=e=>{sel.from=e.target.value;clearRangeSeg();render();};
+document.getElementById("toDate").onchange=e=>{sel.to=e.target.value;clearRangeSeg();render();};
+function clearRangeSeg(){document.querySelectorAll("#rangeSeg button").forEach(b=>b.classList.remove("on"));sel.range="custom";}
+
+document.getElementById("exportBtn").onclick=()=>{
+  if(!DAILY.length&&!MONTHLY.length){setStatus("내보낼 데이터가 없습니다","warn");return;}
+  const {labels,series}=buildSeries();
+  let csv="period,game,metric,value\n";
+  series.forEach(s=>s.data.forEach((v,i)=>{if(v!==null)csv+=`${labels[i]},${s.game},${sel.metric},${v}\n`;}));
+  const blob=new Blob(["\uFEFF"+csv],{type:"text/csv;charset=utf-8"});
+  const a=document.createElement("a");a.href=URL.createObjectURL(blob);
+  a.download=`metrics_${sel.metric}_${sel.unit}_${sel.from}_${sel.to}.csv`;a.click();
+};
+
+function setStatus(txt,cls){document.getElementById("srcStatus").textContent=txt;document.getElementById("srcDot").className="dot "+(cls||"");}
+function showData(show){
+  ["controls","cards","chartCard"].forEach(id=>document.getElementById(id).classList.toggle("hide",!show));
+  document.getElementById("emptyState").classList.toggle("hide",show);
+}
+function updateMeta(){const ds=allDates();document.getElementById("meta").textContent=ds.length?`데이터 ${ds[0]} ~ ${ds[ds.length-1]} · 게임 ${GAMES.length}종 · 일간 ${DAILY.length.toLocaleString()}행`:"데이터 없음";}
+
+// localStorage (없거나 막혀 있어도 동작하도록 try/catch)
+function saveCfg(url){try{localStorage.setItem(LS_KEY,url);}catch(e){}}
+function loadCfg(){try{return localStorage.getItem(LS_KEY)||"";}catch(e){return "";}}
+function clearCfg(){try{localStorage.removeItem(LS_KEY);}catch(e){}}
+
+// OneDrive 개인용 공유링크 → 직접 다운로드 URL 변환 (SharePoint 경로형 URL은 그대로 사용)
+function toDirectUrl(u){
+  u=u.trim();
+  if(/1drv\.ms|onedrive\.live\.com/.test(u)){
+    try{const b=btoa(unescape(encodeURIComponent(u))).replace(/=+$/,"").replace(/\//g,"_").replace(/\+/g,"-");return "https://api.onedrive.com/v1.0/shares/u!"+b+"/root/content";}catch(e){return u;}
+  }
+  return u;
+}
+// 입력 링크에서 daily/monthly CSV URL을 결정
+function resolveUrls(raw){
+  raw=raw.trim();
+  if(/\.csv(\?|$)/i.test(raw)){
+    let m=null;
+    if(/db_daily/i.test(raw)) m=raw.replace(/db_daily/i,"db_monthly");
+    return {d:raw,m};
+  }
+  let base=raw.replace(/[#?].*$/,"");
+  if(!base.endsWith("/")) base+="/";
+  return {d:base+DAILY_FILE,m:base+MONTHLY_FILE};
+}
+async function fetchInto(url){
+  const r=await fetch(toDirectUrl(url),{cache:"no-store"});
+  if(!r.ok) throw new Error("HTTP "+r.status);
+  return await r.text();
+}
+async function tryLoad(url,expectKind){
+  try{const t=await fetchInto(url);const k=ingest(t);return true;}catch(e){return false;}
+}
+
+async function connect(rawUrl,persist){
+  setStatus("불러오는 중…","warn");
+  DAILY=[];MONTHLY=[];
+  const {d,m}=resolveUrls(rawUrl);
+  const okD=await tryLoad(d,"daily");
+  let okM=false; if(m) okM=await tryLoad(m,"monthly");
+  if(okD){
+    if(persist) saveCfg(rawUrl);
+    afterLoad(); setStatus("연동됨 · 링크"+(okM?" (일간+월간)":" (일간만)"),"ok");
+    return true;
+  }
+  setStatus("불러오기 실패 — 링크를 확인하세요(직접 CSV 링크 권장)","err");
+  return false;
+}
+function afterLoad(){refreshGames();rebuildGameChips();initDates();render();updateMeta();showData(true);}
+
+async function boot(){
+  setStatus("연동 확인 중…","warn");
+  const saved=loadCfg();
+  document.getElementById("urlInput").value=saved||"";
+  // 1) 저장된 링크
+  if(saved){ if(await connect(saved,false)) return; }
+  // 2) 같은 폴더 자동 연동
+  DAILY=[];MONTHLY=[];
+  const okD=await tryLoad(DAILY_FILE,"daily");
+  if(okD){ await tryLoad(MONTHLY_FILE,"monthly"); afterLoad(); setStatus("연동됨 · 같은 폴더","ok"); return; }
+  // 3) 데이터 없음
+  showData(false); setStatus("데이터 연동 필요","warn");
+}
+
+document.getElementById("urlLoad").onclick=()=>{const v=document.getElementById("urlInput").value.trim();if(!v){setStatus("링크를 입력하세요","warn");return;}connect(v,true);};
+document.getElementById("urlClear").onclick=()=>{clearCfg();document.getElementById("urlInput").value="";DAILY=[];MONTHLY=[];GAMES=[];if(chart){chart.destroy();chart=null;}showData(false);updateMeta();setStatus("연동 해제됨","warn");};
+document.getElementById("fileInput").onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{ingest(r.result);afterLoad();setStatus("임시 파일: "+f.name+" (저장 안 됨)","ok");}catch(err){setStatus("읽기 실패: "+err.message,"err");}};r.readAsText(f,"utf-8");};
+
+// 드래그&드롭(임시 보기)
+const wrap=document.querySelector(".wrap");
+["dragover","drop"].forEach(ev=>wrap.addEventListener(ev,e=>e.preventDefault()));
+wrap.addEventListener("drop",e=>{const f=e.dataTransfer.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{ingest(r.result);afterLoad();setStatus("드롭 파일: "+f.name+" (저장 안 됨)","ok");}catch(err){setStatus("읽기 실패: "+err.message,"err");}};r.readAsText(f,"utf-8");});
+
+boot();
+</script>
+</body>
+</html>
