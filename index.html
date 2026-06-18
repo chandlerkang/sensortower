@@ -213,8 +213,8 @@ function ingest(text){
     DAILY=rows.map(r=>({date:r[i.date]&&r[i.date].trim(),game:r[i.game]&&r[i.game].trim(),platform:r[i.plat]&&r[i.plat].trim(),revenue:num(r[i.rev]),dau:num(r[i.dau]),downloads:num(r[i.dl])})).filter(x=>x.date&&x.game&&x.platform);
     return "daily";
   }else if(h.includes("year_month")){
-    const i={ym:h.indexOf("year_month"),game:h.indexOf("game"),plat:h.indexOf("platform"),mau:h.indexOf("mau"),rev:h.indexOf("revenue_usd"),dl:h.indexOf("downloads")};
-    MONTHLY=rows.map(r=>({ym:r[i.ym]&&r[i.ym].trim(),game:r[i.game]&&r[i.game].trim(),platform:r[i.plat]&&r[i.plat].trim(),mau:num(r[i.mau]),revenue:num(r[i.rev]),downloads:num(r[i.dl])})).filter(x=>x.ym&&x.game);
+    const i={ym:h.indexOf("year_month"),game:h.indexOf("game"),plat:h.indexOf("platform"),mau:h.indexOf("mau"),rev:h.indexOf("revenue_usd"),dl:h.indexOf("downloads"),rpd:h.indexOf("rpd")};
+    MONTHLY=rows.map(r=>({ym:r[i.ym]&&r[i.ym].trim(),game:r[i.game]&&r[i.game].trim(),platform:r[i.plat]&&r[i.plat].trim(),mau:num(r[i.mau]),revenue:num(r[i.rev]),downloads:num(r[i.dl]),rpd:i.rpd>=0?num(r[i.rpd]):null})).filter(x=>x.ym&&x.game);
     return "monthly";
   }
   throw new Error("알 수 없는 CSV 형식");
@@ -246,6 +246,7 @@ function weekStart(dateStr){const d=new Date(dateStr+"T00:00:00");const wd=(d.ge
 function bucketKey(dateStr){if(sel.unit==="day")return dateStr;if(sel.unit==="week")return weekStart(dateStr);return dateStr.slice(0,7);}
 
 const ADDITIVE=new Set(["revenue","downloads"]);
+const MONTHLY_METRICS=new Set(["mau"]);
 function dayValue(game,dateStr){
   const rs=DAILY.filter(d=>d.game===game&&d.date===dateStr);
   const pick=p=>rs.find(r=>r.platform===p);
@@ -261,7 +262,7 @@ function sumN(a,b){if((a===null||a===undefined)&&(b===null||b===undefined))retur
 function buildSeries(){
   const inRange=d=>d.date>=sel.from&&d.date<=sel.to;
   const dates=[...new Set(DAILY.filter(inRange).map(d=>d.date))].sort();
-  if(sel.metric==="mau"){
+  if(MONTHLY_METRICS.has(sel.metric)){
     sel.unit="month"; markUnit();
     const months=[...new Set(MONTHLY.map(m=>m.ym))].filter(m=>{const md=m+"-01";return md>=sel.from.slice(0,7)+"-01"&&md<=sel.to.slice(0,7)+"-01";}).sort();
     const labels=months;
@@ -302,7 +303,7 @@ function fmtNum(v){if(v===null)return"-";return Math.round(v).toLocaleString("en
 function fmtVal(v){if(v===null)return"-";if(sel.metric==="revenue")return fmtMoney(v);if(sel.metric==="rpd"||sel.metric==="arpdau")return"$"+v.toFixed(3);return fmtNum(v);}
 
 function render(){
-  if(sel.metric==="mau"&&sel.unit!=="month"){sel.unit="month";markUnit();}
+  if(MONTHLY_METRICS.has(sel.metric)&&sel.unit!=="month"){sel.unit="month";markUnit();}
   const {labels,series}=buildSeries();
   drawChart(labels,series);
   drawCards(labels,series);
@@ -347,10 +348,13 @@ function drawCards(labels,series){
 }
 function footNote(){
   const notes=[];
-  notes.push("집계 규칙: 매출·다운로드=합계, DAU=구간 평균, RPD=합계매출÷합계다운로드, ARPDAU=합계매출÷합계DAU.");
-  if(sel.metric==="rpd")notes.push("RPD는 다운로드 데이터가 있는 구간만 표시됩니다.");
-  if(sel.metric==="mau"){notes.push("MAU는 월간 전용 지표로, db_monthly.csv 값을 사용합니다.");if(!MONTHLY.length)notes.push("월간 파일(db_monthly.csv)이 연동되지 않아 비어 있습니다.");}
-  if([...sel.games].includes("스타 세이비어")&&sel.metric==="dau"&&sel.plat!=="AOS")notes.push("스타 세이비어 iOS DAU는 센서타워 미제공으로 비어 있습니다.");
+  notes.push("집계: 매출·다운로드=합계, DAU=구간 평균, RPD=합계매출÷합계다운로드, ARPDAU=합계매출÷합계DAU. (MAU만 월간)");
+  if((["revenue","downloads","rpd","arpdau"].includes(sel.metric))&&[...sel.games].includes("승리의여신: 니케"))
+    notes.push("승리의여신: 니케는 일간 매출/다운로드 데이터가 없어 이 지표에서 비어 있습니다(월간 MAU·매출은 있음).");
+  if(sel.metric==="dau"&&[...sel.games].includes("스타 세이비어")&&sel.plat!=="AOS")
+    notes.push("스타 세이비어 iOS DAU는 센서타워 미제공으로 비어 있습니다.");
+  if(sel.metric==="mau"&&[...sel.games].includes("스타 세이비어")&&sel.plat!=="AOS")
+    notes.push("스타 세이비어 iOS MAU는 센서타워 미제공으로 비어 있습니다.");
   document.getElementById("footNote").innerHTML=notes.join("<br>");
 }
 
