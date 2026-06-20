@@ -3,7 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>센서타워 경쟁게임 지표</title>
+<meta name="robots" content="noindex, nofollow, noarchive, nosnippet">
+<title>경쟁게임 지표</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
@@ -31,6 +32,8 @@ a{text-decoration:none;color:inherit}
 .mng:hover{border-color:var(--accent)}
 .mng i{font-size:14px;color:var(--hint)}
 .gl{font-size:11.5px;color:var(--muted);margin-bottom:6px}
+.banner{display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--neg);background:var(--neg-bg);border-radius:8px;padding:7px 11px;margin-bottom:14px}
+.banner i{font-size:14px}
 .brand .tt{font-size:13px;font-weight:500;color:var(--sb-ink);line-height:1.25}
 .brand .tt small{display:block;font-size:10.5px;color:var(--sb-muted);font-weight:400}
 .nav a{display:flex;align-items:center;gap:10px;font-size:12.5px;color:var(--sb-muted);padding:9px 10px;border-radius:8px;margin-bottom:2px;cursor:pointer}
@@ -150,6 +153,7 @@ tr:last-child td{border-bottom:none}
       <button class="mb" id="themeBtn2" style="margin-left:auto" aria-label="테마"><i class="ti ti-moon"></i></button>
     </div>
     <div class="topbar"><button class="mng" id="mngBtn"><i class="ti ti-lock"></i>데이터 관리</button></div>
+    <div class="banner"><i class="ti ti-alert-triangle"></i><span>사내 참고용 자료입니다. 외부 공유·배포 및 무단 반출을 금지합니다.</span></div>
 
     <!-- EMPTY -->
     <div class="empty hide" id="emptyState">
@@ -419,7 +423,7 @@ function renderOverview(){
     rows+=`<tr class="${g===OWN_GAME?'own':''}"><td>${g}</td><td>${fmtMoney(t.rev)}</td><td>${fmtNum(t.dau)}</td><td>${fmtFull(t.dl)}</td><td>${t.rpd===null?'-':'$'+t.rpd.toFixed(1)}</td><td>${mau?fmtNum(mau):'-'}</td></tr>`;});
   document.getElementById("ovTable").innerHTML=rows;
   const notes=[];if([...sel.games].includes("승리의여신: 니케"))notes.push("승리의여신: 니케는 일간 매출/다운로드 데이터가 없습니다(DAU·월간 지표는 정상).");
-  if([...sel.games].includes("스타 세이비어")&&sel.plat!=="AOS")notes.push("스타 세이비어 iOS DAU/MAU는 센서타워 미제공입니다.");
+  if([...sel.games].includes("스타 세이비어")&&sel.plat!=="AOS")notes.push("스타 세이비어 iOS DAU/MAU는 데이터 미제공으로 비어 있습니다.");
   document.getElementById("ovNote").innerHTML=notes.join("<br>");
 }
 
