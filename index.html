@@ -25,7 +25,12 @@ a{text-decoration:none;color:inherit}
 .app{display:flex;min-height:100vh}
 .sidebar{width:212px;flex:none;background:var(--sidebar);border-right:0.5px solid var(--line);padding:16px 12px;display:flex;flex-direction:column;position:sticky;top:0;height:100vh}
 .brand{display:flex;align-items:center;gap:9px;padding:4px 8px 18px}
-.brand .mk{width:26px;height:26px;border-radius:7px;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;flex:none}
+.brand .mk{width:30px;height:30px;border-radius:8px;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;flex:none;font-size:12px;font-weight:500;letter-spacing:.3px}
+.topbar{display:flex;justify-content:flex-end;margin-bottom:10px}
+.mng{font-size:11.5px;color:var(--muted);border:0.5px solid var(--line2);border-radius:8px;padding:6px 11px;display:inline-flex;align-items:center;gap:6px;background:var(--surface);cursor:pointer;font-family:inherit}
+.mng:hover{border-color:var(--accent)}
+.mng i{font-size:14px;color:var(--hint)}
+.gl{font-size:11.5px;color:var(--muted);margin-bottom:6px}
 .brand .tt{font-size:13px;font-weight:500;color:var(--sb-ink);line-height:1.25}
 .brand .tt small{display:block;font-size:10.5px;color:var(--sb-muted);font-weight:400}
 .nav a{display:flex;align-items:center;gap:10px;font-size:12.5px;color:var(--sb-muted);padding:9px 10px;border-radius:8px;margin-bottom:2px;cursor:pointer}
@@ -121,15 +126,15 @@ tr:last-child td{border-bottom:none}
   <!-- SIDEBAR -->
   <aside class="sidebar" id="sidebar">
     <div class="brand">
-      <span class="mk"><i class="ti ti-chart-dots" style="font-size:16px"></i></span>
-      <span class="tt"><small>센서타워</small>경쟁게임 지표</span>
+      <img id="logoImg" alt="로고" style="height:30px;width:auto;display:none">
+      <span class="mk" id="logoMk">NG</span>
+      <span class="tt"><small>넥슨게임즈</small>경쟁게임 지표</span>
     </div>
     <nav class="nav" id="nav">
       <a data-page="overview" class="on"><i class="ti ti-layout-dashboard"></i>개요</a>
       <a data-page="detail"><i class="ti ti-device-gamepad-2"></i>게임별 상세</a>
       <a data-page="rank"><i class="ti ti-trophy"></i>순위·비교</a>
       <a data-page="export"><i class="ti ti-file-export"></i>데이터 추출</a>
-      <a data-page="admin"><i class="ti ti-database-cog"></i>데이터 관리<i class="ti ti-lock lk" id="lockIcon"></i></a>
     </nav>
     <div class="sb-foot">
       <button class="themebtn" id="themeBtn"><i class="ti ti-moon"></i><span id="themeLbl">다크</span></button>
@@ -144,6 +149,7 @@ tr:last-child td{border-bottom:none}
       <span class="bt">경쟁게임 지표</span>
       <button class="mb" id="themeBtn2" style="margin-left:auto" aria-label="테마"><i class="ti ti-moon"></i></button>
     </div>
+    <div class="topbar"><button class="mng" id="mngBtn"><i class="ti ti-lock"></i>데이터 관리</button></div>
 
     <!-- EMPTY -->
     <div class="empty hide" id="emptyState">
@@ -154,10 +160,12 @@ tr:last-child td{border-bottom:none}
     <!-- PAGE: OVERVIEW -->
     <section data-pg="overview">
       <div class="hd"><h1>개요</h1><span class="sub" id="ovSub"></span></div>
+      <div class="gl">게임 <span class="quick" id="ovSelAll">전체</span> <span class="quick" id="ovSelNone">해제</span> <span class="quick" id="ovSelOwn">자사만</span></div>
+      <div class="chips" id="ovGames" style="margin-bottom:12px"></div>
       <div class="toolbar" id="ovToolbar"></div>
       <div class="kpis" id="ovKpis"></div>
       <div class="card">
-        <div class="ch"><span class="t" id="ovChartTitle">추이</span><span class="s" id="ovChartSub"></span></div>
+        <div class="ch"><span class="t" id="ovChartTitle">추이</span><div class="seg" id="ovMetricSeg"></div></div>
         <div class="legend" id="ovLegend"></div>
         <div class="chartwrap"><canvas id="ovChart"></canvas></div>
       </div>
@@ -300,7 +308,7 @@ function ingest(t){const {head,rows}=parseCSV(t);const h=head.map(s=>s.toLowerCa
   throw new Error("형식 오류");}
 function refreshGames(){const s=new Set();DAILY.forEach(d=>s.add(d.game));MONTHLY.forEach(d=>s.add(d.game));
   GAMES=[...s].sort((a,b)=>a===OWN_GAME?-1:b===OWN_GAME?1:a.localeCompare(b,"ko"));
-  if(sel.games.size===0)GAMES.slice(0,3).forEach(g=>sel.games.add(g));else sel.games=new Set([...sel.games].filter(g=>s.has(g)));
+  if(sel.games.size===0)GAMES.forEach(g=>sel.games.add(g));else sel.games=new Set([...sel.games].filter(g=>s.has(g)));
   if(!sel.detailGame)sel.detailGame=GAMES.includes(OWN_GAME)?OWN_GAME:GAMES[0];
   if(exState.games.size===0)exState.games=new Set(GAMES);}
 
@@ -387,7 +395,10 @@ function wireToolbar(box,state,onChange){
 
 /* ---------- pages ---------- */
 function renderOverview(){
-  const tb=document.getElementById("ovToolbar");tb.innerHTML=toolbarHTML(sel,{metric:true});wireToolbar(tb,sel,renderOverview);
+  const gc=document.getElementById("ovGames");gc.innerHTML="";GAMES.forEach(g=>{const c=document.createElement("span");c.className="chip"+(g===OWN_GAME?" own":"")+(sel.games.has(g)?" on":"");c.textContent=g===OWN_GAME?g+" (자사)":g;c.onclick=()=>{if(sel.games.has(g))sel.games.delete(g);else sel.games.add(g);if(sel.games.size===0)sel.games.add(g);renderOverview();};gc.appendChild(c);});
+  const ms=document.getElementById("ovMetricSeg");ms.innerHTML=ALL_METRICS.map(m=>`<button data-m="${m}" class="${sel.metric===m?'on':''}">${METRIC_LABEL[m]}</button>`).join("");
+  ms.querySelectorAll("button").forEach(b=>b.onclick=()=>{sel.metric=b.dataset.m;renderOverview();});
+  const tb=document.getElementById("ovToolbar");tb.innerHTML=toolbarHTML(sel,{metric:false});wireToolbar(tb,sel,renderOverview);
   const eff=MONTHLY_METRICS.has(sel.metric)?"month":sel.unit;
   document.getElementById("ovSub").textContent=`${sel.from} ~ ${sel.to}`;
   // KPIs
@@ -396,8 +407,7 @@ function renderOverview(){
   document.getElementById("ovKpis").innerHTML=kp.map(k=>`<div class="kpi"><div class="l">${k[0]}</div><div class="v">${k[1]}</div>${deltaHtml(k[2])}</div>`).join("");
   // chart
   const {labels,series}=seriesFor([...sel.games],sel.metric,sel.plat,sel.unit,sel.from,sel.to);
-  document.getElementById("ovChartTitle").textContent=`${METRIC_LABEL[sel.metric]} 추이`;
-  document.getElementById("ovChartSub").textContent=`${sel.plat==="SUM"?"iOS+AOS":sel.plat} · ${({day:"일간",week:"주간",month:"월간"})[eff]}`;
+  document.getElementById("ovChartTitle").textContent=`${METRIC_LABEL[sel.metric]} 추이 · ${sel.plat==="SUM"?"iOS+AOS":sel.plat} · ${({day:"일간",week:"주간",month:"월간"})[eff]}`;
   document.getElementById("ovLegend").innerHTML=series.map((s,i)=>`<span><b style="background:${PALETTE[i%8]}"></b>${s.game}</span>`).join("");
   lineChart("ovChart",labels,series,sel.metric);
   // table
@@ -548,7 +558,7 @@ async function boot(){
 
 /* ---------- admin modal ---------- */
 function openAdminModal(){if(adminUnlocked)return;document.getElementById("adminErr").textContent="";document.getElementById("adminPass").value="";document.getElementById("adminModal").classList.remove("hide");setTimeout(()=>document.getElementById("adminPass").focus(),40);}
-function tryAdmin(){if(document.getElementById("adminPass").value===ADMIN_PASSWORD){adminUnlocked=true;document.getElementById("adminModal").classList.add("hide");document.getElementById("lockIcon").className="ti ti-lock-open lk";renderAdmin();}else document.getElementById("adminErr").textContent="비밀번호가 올바르지 않습니다.";}
+function tryAdmin(){if(document.getElementById("adminPass").value===ADMIN_PASSWORD){adminUnlocked=true;document.getElementById("adminModal").classList.add("hide");const mi=document.querySelector("#mngBtn i");if(mi)mi.className="ti ti-lock-open";renderAdmin();}else document.getElementById("adminErr").textContent="비밀번호가 올바르지 않습니다.";}
 
 /* ---------- drawer ---------- */
 function openDrawer(){document.body.classList.add("drawer");}
@@ -560,6 +570,14 @@ document.getElementById("nav").addEventListener("click",e=>{const a=e.target.clo
 document.getElementById("themeBtn").onclick=toggleTheme;
 document.getElementById("themeBtn2").onclick=toggleTheme;
 document.getElementById("menuBtn").onclick=openDrawer;
+document.getElementById("mngBtn").onclick=()=>gotoPage("admin");
+document.getElementById("ovSelAll").onclick=()=>{sel.games=new Set(GAMES);renderOverview();};
+document.getElementById("ovSelNone").onclick=()=>{sel.games=new Set([GAMES[0]]);renderOverview();};
+document.getElementById("ovSelOwn").onclick=()=>{sel.games=new Set([OWN_GAME]);renderOverview();};
+(function(){const li=document.getElementById("logoImg"),mk=document.getElementById("logoMk");
+  li.onload=()=>{li.style.display="block";mk.style.display="none";};
+  li.onerror=()=>{if((li.getAttribute("src")||"").indexOf("logo.svg")>=0)li.src="logo.png";else li.style.display="none";};
+  li.src="logo.svg";})();
 document.getElementById("backdrop").onclick=closeDrawer;
 document.getElementById("adminUnlockBtn").onclick=openAdminModal;
 document.getElementById("adminOk").onclick=tryAdmin;
