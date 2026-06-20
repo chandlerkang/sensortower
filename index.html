@@ -83,7 +83,7 @@
       </div>
     </div>
     <div style="display:flex;gap:8px">
-      <button class="btn" id="exportBtn">현재 조건 CSV 내보내기</button>
+      <button class="btn" id="exportBtn">상세 CSV 내보내기 (게임별)</button>
       <button class="btn" id="adminBtn">관리</button>
     </div>
   </header>
@@ -378,13 +378,60 @@ document.getElementById("toDate").onchange=e=>{sel.to=e.target.value;clearRangeS
 function clearRangeSeg(){document.querySelectorAll("#rangeSeg button").forEach(b=>b.classList.remove("on"));sel.range="custom";}
 
 document.getElementById("exportBtn").onclick=()=>{
-  if(!DAILY.length&&!MONTHLY.length){setStatus("내보낼 데이터가 없습니다","warn");return;}
-  const {labels,series}=buildSeries();
-  let csv="period,game,metric,value\n";
-  series.forEach(s=>s.data.forEach((v,i)=>{if(v!==null)csv+=`${labels[i]},${s.game},${sel.metric},${v}\n`;}));
+  if(!DAILY.length){setStatus("내보낼 데이터가 없습니다","warn");return;}
+  const games=[...sel.games]; if(!games.length){setStatus("게임을 선택하세요","warn");return;}
+  const u=MONTHLY_METRICS.has(sel.metric)?"month":sel.unit;
+  // 빠른 조회용 인덱스
+  const idx=new Map(); DAILY.forEach(r=>idx.set(r.date+"|"+r.game+"|"+r.platform,r));
+  const inRange=d=>d.date>=sel.from&&d.date<=sel.to;
+  const dates=[...new Set(DAILY.filter(inRange).map(d=>d.date))].sort();
+  const labels=[...new Set(dates.map(bucketKey))].sort();
+  const plats=["iOS","AOS"];
+  // 게임×라벨×플랫폼 누적
+  function accFor(g){
+    const acc={}; labels.forEach(l=>{acc[l]={iOS:{rev:0,dau:0,dl:0,nr:0,na:0,nd:0},AOS:{rev:0,dau:0,dl:0,nr:0,na:0,nd:0}};});
+    dates.forEach(dt=>{const k=bucketKey(dt);
+      plats.forEach(p=>{const r=idx.get(dt+"|"+g+"|"+p); if(!r)return; const a=acc[k][p];
+        if(r.revenue!==null){a.rev+=r.revenue;a.nr++;}
+        if(r.dau!==null){a.dau+=r.dau;a.na++;}
+        if(r.downloads!==null){a.dl+=r.downloads;a.nd++;}
+      });
+    });
+    return acc;
+  }
+  // 컬럼: 매출($) → DAU → 다운로드 → RPD($) 순, 각 지표마다 iOS/AOS
+  const metrics=[["매출($)","rev"],["DAU","dau"],["다운로드","dl"],["RPD($)","rpd"]];
+  const blocks=games.map(g=>({g,acc:accFor(g)}));
+  const esc=s=>{s=String(s); return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;};
+  // 헤더 2줄
+  const h1=[""], h2=["일자"];
+  blocks.forEach((b,gi)=>{
+    const cols=[]; metrics.forEach(([lab])=>plats.forEach(p=>cols.push(p+" "+lab)));
+    h1.push(esc(b.g)); for(let i=1;i<cols.length;i++) h1.push("");
+    cols.forEach(c=>h2.push(esc(c)));
+    if(gi<blocks.length-1){h1.push("");h2.push("");}
+  });
+  const lines=[h1.join(","),h2.join(",")];
+  labels.forEach(l=>{
+    const row=[l];
+    blocks.forEach((b,gi)=>{
+      const a=b.acc[l];
+      metrics.forEach(([_,key])=>plats.forEach(p=>{const c=a[p]; let v="";
+        if(key==="rev") v=c.nr?c.rev.toFixed(2):"";
+        else if(key==="dau") v=c.na?Math.round(c.dau/c.na):"";
+        else if(key==="dl") v=c.nd?Math.round(c.dl):"";
+        else if(key==="rpd") v=(c.nd&&c.dl>0)?(c.rev/c.dl).toFixed(3):"";
+        row.push(v);
+      }));
+      if(gi<blocks.length-1) row.push("");
+    });
+    lines.push(row.join(","));
+  });
+  const csv=lines.join("\n");
   const blob=new Blob(["\uFEFF"+csv],{type:"text/csv;charset=utf-8"});
   const a=document.createElement("a");a.href=URL.createObjectURL(blob);
-  a.download=`metrics_${sel.metric}_${sel.unit}_${sel.from}_${sel.to}.csv`;a.click();
+  const ul=u==="day"?"일간":u==="week"?"주간":"월간";
+  a.download=`경쟁게임_${ul}상세_${sel.from}_${sel.to}.csv`;a.click();
 };
 
 function setStatus(txt,cls){document.getElementById("srcStatus").textContent=txt;document.getElementById("srcDot").className="dot "+(cls||"");}
