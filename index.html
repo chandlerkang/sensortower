@@ -166,6 +166,8 @@ tr:last-child td{border-bottom:none}
       <div class="hd"><h1>개요</h1><span class="sub" id="ovSub"></span></div>
       <div class="gl">게임 <span class="quick" id="ovSelAll">전체</span> <span class="quick" id="ovSelNone">해제</span> <span class="quick" id="ovSelOwn">자사만</span></div>
       <div class="chips" id="ovGames" style="margin-bottom:12px"></div>
+      <div class="gl">지역 (국가 그룹)</div>
+      <div class="chips" id="ovRegions" style="margin-bottom:12px"></div>
       <div class="toolbar" id="ovToolbar"></div>
       <div class="kpis" id="ovKpis"></div>
       <div class="card">
@@ -184,6 +186,7 @@ tr:last-child td{border-bottom:none}
     <section data-pg="detail" class="hide">
       <div class="hd"><h1>게임별 상세</h1><span class="sub" id="dtSub"></span></div>
       <div class="toolbar" id="dtToolbar"></div>
+      <div class="chips" id="dtRegions" style="margin-bottom:12px"></div>
       <div class="kpis" id="dtKpis"></div>
       <div class="card">
         <div class="ch"><span class="t" id="dtChartTitle">iOS vs AOS</span><span class="s" id="dtChartSub"></span></div>
@@ -201,6 +204,7 @@ tr:last-child td{border-bottom:none}
     <section data-pg="rank" class="hide">
       <div class="hd"><h1>순위·비교</h1><span class="sub" id="rkSub"></span></div>
       <div class="toolbar" id="rkToolbar"></div>
+      <div class="chips" id="rkRegions" style="margin-bottom:12px"></div>
       <div class="card">
         <div class="ch"><span class="t" id="rkChartTitle">순위</span></div>
         <div class="bars" id="rkBars"></div>
@@ -213,6 +217,7 @@ tr:last-child td{border-bottom:none}
       <div class="hd"><h1>데이터 추출</h1><span class="sub">조건을 정해 CSV로 내려받기</span></div>
       <div class="card">
         <div style="margin-bottom:14px"><div class="flabel">게임 (다중 선택) <span class="quick" id="exAll">전체</span> <span class="quick" id="exOwn">자사만</span></div><div class="chips" id="exGames"></div></div>
+        <div style="margin-bottom:14px"><div class="flabel">지역 (국가 그룹)</div><div class="chips" id="exRegions"></div></div>
         <div class="formgrid">
           <div><div class="flabel">플랫폼</div><div class="seg" id="exPlat"><button data-v="SUM" class="on">iOS+AOS</button><button data-v="iOS">iOS</button><button data-v="AOS">AOS</button></div></div>
           <div><div class="flabel">집계 단위</div><div class="seg" id="exUnit"><button data-v="day" class="on">일간</button><button data-v="week">주간</button><button data-v="month">월간</button></div></div>
@@ -283,12 +288,13 @@ const LS_URL="stm_url",LS_THEME="stm_theme";
 const ADMIN_PASSWORD="kang4324";
 const METRIC_LABEL={dau:"DAU",revenue:"매출($)",downloads:"다운로드",rpd:"RPD($)",mau:"MAU"};
 const ALL_METRICS=["dau","revenue","downloads","rpd","mau"];
+const REG_ALL=["한국","미국","일본","중국","아시아","유럽","기타"];
 
-let DAILY=[],MONTHLY=[],GAMES=[];
+let DAILY=[],MONTHLY=[],GAMES=[],DMAP={},HAS_REGION=false,HAS_MREGION=false;
 let adminUnlocked=false;
 let charts={};
-let sel={metric:"revenue",plat:"SUM",unit:"day",range:"90",from:null,to:null,games:new Set(),detailGame:null};
-let exState={plat:"SUM",unit:"day",fmt:"wide",metrics:new Set(["dau","revenue","downloads","rpd"]),games:new Set(),from:null,to:null};
+let sel={metric:"revenue",plat:"SUM",unit:"day",range:"90",from:null,to:null,games:new Set(),detailGame:null,regions:new Set(REG_ALL)};
+let exState={plat:"SUM",unit:"day",fmt:"wide",metrics:new Set(["dau","revenue","downloads","rpd"]),games:new Set(),from:null,to:null,regions:new Set(REG_ALL)};
 
 /* ---------- theme ---------- */
 function applyTheme(t){document.documentElement.setAttribute("data-theme",t==="dark"?"dark":"light");
@@ -305,10 +311,13 @@ function themeColors(){const dk=document.documentElement.getAttribute("data-them
 function parseCSV(t){const lines=t.replace(/^\uFEFF/,"").split(/\r?\n/).filter(l=>l.trim()!=="");const head=lines[0].split(",").map(s=>s.trim());return {head,rows:lines.slice(1).map(l=>l.split(","))};}
 function num(v){if(v===undefined)return null;v=(""+v).trim();if(v===""||v==="-")return null;const n=parseFloat(v);return isNaN(n)?null:n;}
 function ingest(t){const {head,rows}=parseCSV(t);const h=head.map(s=>s.toLowerCase());
-  if(h.includes("date")){const i={date:h.indexOf("date"),game:h.indexOf("game"),plat:h.indexOf("platform"),rev:h.indexOf("revenue_usd"),dau:h.indexOf("dau"),dl:h.indexOf("downloads")};
-    DAILY=rows.map(r=>({date:r[i.date]&&r[i.date].trim(),game:r[i.game]&&r[i.game].trim(),platform:r[i.plat]&&r[i.plat].trim(),revenue:num(r[i.rev]),dau:num(r[i.dau]),downloads:num(r[i.dl])})).filter(x=>x.date&&x.game&&x.platform);return "daily";}
-  if(h.includes("year_month")){const i={ym:h.indexOf("year_month"),game:h.indexOf("game"),plat:h.indexOf("platform"),mau:h.indexOf("mau"),rev:h.indexOf("revenue_usd"),dl:h.indexOf("downloads"),rpd:h.indexOf("rpd")};
-    MONTHLY=rows.map(r=>({ym:r[i.ym]&&r[i.ym].trim(),game:r[i.game]&&r[i.game].trim(),platform:r[i.plat]&&r[i.plat].trim(),mau:num(r[i.mau]),revenue:num(r[i.rev]),downloads:num(r[i.dl]),rpd:i.rpd>=0?num(r[i.rpd]):null})).filter(x=>x.ym&&x.game);return "monthly";}
+  if(h.includes("date")){const i={date:h.indexOf("date"),game:h.indexOf("game"),plat:h.indexOf("platform"),reg:h.indexOf("region"),rev:h.indexOf("revenue_usd"),dau:h.indexOf("dau"),dl:h.indexOf("downloads")};
+    HAS_REGION=i.reg>=0;
+    DAILY=rows.map(r=>({date:r[i.date]&&r[i.date].trim(),game:r[i.game]&&r[i.game].trim(),platform:r[i.plat]&&r[i.plat].trim(),region:HAS_REGION?(r[i.reg]&&r[i.reg].trim()):"전체",revenue:num(r[i.rev]),dau:num(r[i.dau]),downloads:num(r[i.dl])})).filter(x=>x.date&&x.game&&x.platform);
+    DMAP={};DAILY.forEach(d=>{DMAP[d.date+"|"+d.game+"|"+d.platform+"|"+d.region]=d;});return "daily";}
+  if(h.includes("year_month")){const i={ym:h.indexOf("year_month"),game:h.indexOf("game"),plat:h.indexOf("platform"),reg:h.indexOf("region"),mau:h.indexOf("mau"),rev:h.indexOf("revenue_usd"),dl:h.indexOf("downloads"),rpd:h.indexOf("rpd")};
+    HAS_MREGION=i.reg>=0;
+    MONTHLY=rows.map(r=>({ym:r[i.ym]&&r[i.ym].trim(),game:r[i.game]&&r[i.game].trim(),platform:r[i.plat]&&r[i.plat].trim(),region:HAS_MREGION?(r[i.reg]&&r[i.reg].trim()):"전체",mau:num(r[i.mau]),revenue:num(r[i.rev]),downloads:num(r[i.dl]),rpd:i.rpd>=0?num(r[i.rpd]):null})).filter(x=>x.ym&&x.game);return "monthly";}
   throw new Error("형식 오류");}
 function refreshGames(){const s=new Set();DAILY.forEach(d=>s.add(d.game));MONTHLY.forEach(d=>s.add(d.game));
   GAMES=[...s].sort((a,b)=>a===OWN_GAME?-1:b===OWN_GAME?1:a.localeCompare(b,"ko"));
@@ -326,16 +335,15 @@ function setRange(state,preset){const ds=allDates();if(!ds.length)return;const l
 
 /* ---------- aggregation ---------- */
 function sumN(a,b){if((a===null||a===undefined)&&(b===null||b===undefined))return null;return (a||0)+(b||0);}
-function dayValue(game,ds,plat){const rs=DAILY.filter(d=>d.game===game&&d.date===ds);const pick=p=>rs.find(r=>r.platform===p);
-  let rev=null,dau=null,dl=null;
-  if(plat==="SUM"){const a=pick("iOS"),b=pick("AOS");rev=sumN(a&&a.revenue,b&&b.revenue);dau=sumN(a&&a.dau,b&&b.dau);dl=sumN(a&&a.downloads,b&&b.downloads);}
-  else{const r=pick(plat);if(r){rev=r.revenue;dau=r.dau;dl=r.downloads;}}
-  return {rev,dau,dl};}
+function dayValue(game,ds,plat){const regs=[...sel.regions];
+  function sp(p){let rev=null,dau=null,dl=null;regs.forEach(rg=>{const r=DMAP[ds+"|"+game+"|"+p+"|"+rg];if(r){rev=sumN(rev,r.revenue);dau=sumN(dau,r.dau);dl=sumN(dl,r.downloads);}});return {rev,dau,dl};}
+  if(plat==="SUM"){const a=sp("iOS"),b=sp("AOS");return {rev:sumN(a.rev,b.rev),dau:sumN(a.dau,b.dau),dl:sumN(a.dl,b.dl)};}
+  return sp(plat);}
 function seriesFor(games,metric,plat,unit,from,to){
   if(MONTHLY_METRICS.has(metric)){
     const months=[...new Set(MONTHLY.map(m=>m.ym))].filter(m=>m>=from.slice(0,7)&&m<=to.slice(0,7)).sort();
-    const series=games.map(g=>({game:g,data:months.map(ym=>{const rs=MONTHLY.filter(m=>m.game===g&&m.ym===ym);if(!rs.length)return null;
-      if(plat==="SUM")return rs.reduce((s,r)=>s+(r.mau||0),0)||null;const r=rs.find(x=>x.platform===plat);return r?r.mau:null;})}));
+    const series=games.map(g=>({game:g,data:months.map(ym=>{let rs=MONTHLY.filter(m=>m.game===g&&m.ym===ym);if(HAS_MREGION)rs=rs.filter(m=>sel.regions.has(m.region));if(!rs.length)return null;
+      if(plat==="SUM")return rs.reduce((s,r)=>s+(r.mau||0),0)||null;return rs.filter(x=>x.platform===plat).reduce((s,r)=>s+(r.mau||0),0)||null;})}));
     return {labels:months,series,unit:"month"};
   }
   const dates=allDates().filter(d=>d>=from&&d<=to);
@@ -398,11 +406,22 @@ function wireToolbar(box,state,onChange){
 }
 
 /* ---------- pages ---------- */
+/* ---------- region chips ---------- */
+function clickAllRegions(st){st.regions=new Set(REG_ALL);}
+function clickRegion(st,rg){if(st.regions.size===REG_ALL.length){st.regions=new Set([rg]);}else{st.regions.has(rg)?st.regions.delete(rg):st.regions.add(rg);if(st.regions.size===0)st.regions.add(rg);}}
+function renderRegions(elId,st,onChange){const c=document.getElementById(elId);if(!c)return;
+  if(!HAS_REGION){c.classList.add("hide");return;}
+  c.innerHTML="";const all=st.regions.size===REG_ALL.length;
+  const mk=(label,on,fn)=>{const s=document.createElement("span");s.className="chip"+(on?" on":"");s.textContent=label;s.onclick=fn;c.appendChild(s);};
+  mk("전체",all,()=>{clickAllRegions(st);onChange();});
+  REG_ALL.forEach(rg=>mk(rg,!all&&st.regions.has(rg),()=>{clickRegion(st,rg);onChange();}));}
+
 function renderOverview(){
   const gc=document.getElementById("ovGames");gc.innerHTML="";GAMES.forEach(g=>{const c=document.createElement("span");c.className="chip"+(g===OWN_GAME?" own":"")+(sel.games.has(g)?" on":"");c.textContent=g===OWN_GAME?g+" (자사)":g;c.onclick=()=>{if(sel.games.has(g))sel.games.delete(g);else sel.games.add(g);if(sel.games.size===0)sel.games.add(g);renderOverview();};gc.appendChild(c);});
   const ms=document.getElementById("ovMetricSeg");ms.innerHTML=ALL_METRICS.map(m=>`<button data-m="${m}" class="${sel.metric===m?'on':''}">${METRIC_LABEL[m]}</button>`).join("");
   ms.querySelectorAll("button").forEach(b=>b.onclick=()=>{sel.metric=b.dataset.m;renderOverview();});
   const tb=document.getElementById("ovToolbar");tb.innerHTML=toolbarHTML(sel,{metric:false});wireToolbar(tb,sel,renderOverview);
+  renderRegions("ovRegions",sel,renderOverview);
   const eff=MONTHLY_METRICS.has(sel.metric)?"month":sel.unit;
   document.getElementById("ovSub").textContent=`${sel.from} ~ ${sel.to}`;
   // KPIs
@@ -417,13 +436,14 @@ function renderOverview(){
   // table
   let rows=`<tr><th>게임</th><th>매출</th><th>DAU</th><th>다운로드</th><th>RPD</th><th>MAU</th></tr>`;
   [...sel.games].forEach(g=>{const t=periodTotals([g],sel.plat,sel.from,sel.to);
-    const m=MONTHLY.filter(x=>x.game===g&&x.ym>=sel.from.slice(0,7)&&x.ym<=sel.to.slice(0,7));
+    let m=MONTHLY.filter(x=>x.game===g&&x.ym>=sel.from.slice(0,7)&&x.ym<=sel.to.slice(0,7));if(HAS_MREGION)m=m.filter(x=>sel.regions.has(x.region));
     let mau=null;const lastYm=[...new Set(m.map(x=>x.ym))].sort().slice(-1)[0];
-    if(lastYm){const mr=m.filter(x=>x.ym===lastYm);mau=sel.plat==="SUM"?mr.reduce((s,r)=>s+(r.mau||0),0):(mr.find(x=>x.platform===sel.plat)||{}).mau;}
+    if(lastYm){const mr=m.filter(x=>x.ym===lastYm);mau=sel.plat==="SUM"?mr.reduce((s,r)=>s+(r.mau||0),0):mr.filter(x=>x.platform===sel.plat).reduce((s,r)=>s+(r.mau||0),0);}
     rows+=`<tr class="${g===OWN_GAME?'own':''}"><td>${g}</td><td>${fmtMoney(t.rev)}</td><td>${fmtNum(t.dau)}</td><td>${fmtFull(t.dl)}</td><td>${t.rpd===null?'-':'$'+t.rpd.toFixed(1)}</td><td>${mau?fmtNum(mau):'-'}</td></tr>`;});
   document.getElementById("ovTable").innerHTML=rows;
   const notes=[];if([...sel.games].includes("승리의여신: 니케"))notes.push("승리의여신: 니케는 일간 매출/다운로드 데이터가 없습니다(DAU·월간 지표는 정상).");
   if([...sel.games].includes("스타 세이비어")&&sel.plat!=="AOS")notes.push("스타 세이비어 iOS DAU/MAU는 데이터 미제공으로 비어 있습니다.");
+  if(HAS_REGION&&sel.regions.size<REG_ALL.length)notes.push("지역 선택 시: 매출·DAU·다운로드·RPD·MAU가 선택 지역 합계로 계산됩니다.");
   document.getElementById("ovNote").innerHTML=notes.join("<br>");
 }
 
@@ -431,6 +451,7 @@ function renderDetail(){
   const tb=document.getElementById("dtToolbar");
   const gameSel=`<span class="field"><span class="k">게임</span><select class="gameSel">${GAMES.map(g=>`<option ${g===sel.detailGame?'selected':''}>${g}</option>`).join("")}</select></span>`;
   tb.innerHTML=gameSel+toolbarHTML(sel,{metric:true});wireToolbar(tb,sel,renderDetail);
+  renderRegions("dtRegions",sel,renderDetail);
   const gs=tb.querySelector(".gameSel");gs.onchange=()=>{sel.detailGame=gs.value;renderDetail();};
   const g=sel.detailGame;document.getElementById("dtSub").textContent=`${g} · ${sel.from} ~ ${sel.to}`;
   const t=periodTotals([g],sel.plat,sel.from,sel.to);
@@ -445,18 +466,19 @@ function renderDetail(){
   // daily detail table
   const dates=allDates().filter(d=>d>=sel.from&&d<=sel.to);
   let rows=`<tr><th>일자</th><th>iOS 매출</th><th>AOS 매출</th><th>iOS DAU</th><th>AOS DAU</th><th>iOS DL</th><th>AOS DL</th></tr>`;
-  dates.slice().reverse().forEach(dt=>{const i=DAILY.find(x=>x.game===g&&x.date===dt&&x.platform==="iOS")||{};const a=DAILY.find(x=>x.game===g&&x.date===dt&&x.platform==="AOS")||{};
-    rows+=`<tr><td>${dt.slice(5)}</td><td>${i.revenue!=null?fmtMoney(i.revenue):'-'}</td><td>${a.revenue!=null?fmtMoney(a.revenue):'-'}</td><td>${i.dau!=null?fmtFull(i.dau):'-'}</td><td>${a.dau!=null?fmtFull(a.dau):'-'}</td><td>${i.downloads!=null?fmtFull(i.downloads):'-'}</td><td>${a.downloads!=null?fmtFull(a.downloads):'-'}</td></tr>`;});
+  dates.slice().reverse().forEach(dt=>{const i=dayValue(g,dt,"iOS");const a=dayValue(g,dt,"AOS");
+    rows+=`<tr><td>${dt.slice(5)}</td><td>${i.rev!=null?fmtMoney(i.rev):'-'}</td><td>${a.rev!=null?fmtMoney(a.rev):'-'}</td><td>${i.dau!=null?fmtFull(i.dau):'-'}</td><td>${a.dau!=null?fmtFull(a.dau):'-'}</td><td>${i.dl!=null?fmtFull(i.dl):'-'}</td><td>${a.dl!=null?fmtFull(a.dl):'-'}</td></tr>`;});
   document.getElementById("dtTable").innerHTML=rows;
   document.getElementById("dtNote").textContent=(g==="승리의여신: 니케")?"니케는 일간 매출/다운로드가 없어 해당 칸이 비어 있습니다.":"";
 }
 
 function renderRank(){
   const tb=document.getElementById("rkToolbar");tb.innerHTML=toolbarHTML(sel,{metric:true});wireToolbar(tb,sel,renderRank);
+  renderRegions("rkRegions",sel,renderRank);
   document.getElementById("rkSub").textContent=`${sel.from} ~ ${sel.to}`;
   const arr=GAMES.map(g=>{const t=periodTotals([g],sel.plat,sel.from,sel.to);let v;
     if(sel.metric==="revenue")v=t.rev;else if(sel.metric==="downloads")v=t.dl;else if(sel.metric==="dau")v=t.dau;else if(sel.metric==="rpd")v=t.rpd;
-    else{const m=MONTHLY.filter(x=>x.game===g&&x.ym>=sel.from.slice(0,7)&&x.ym<=sel.to.slice(0,7));const ly=[...new Set(m.map(x=>x.ym))].sort().slice(-1)[0];const mr=ly?m.filter(x=>x.ym===ly):[];v=mr.length?(sel.plat==="SUM"?mr.reduce((s,r)=>s+(r.mau||0),0):(mr.find(x=>x.platform===sel.plat)||{}).mau):null;}
+    else{let m=MONTHLY.filter(x=>x.game===g&&x.ym>=sel.from.slice(0,7)&&x.ym<=sel.to.slice(0,7));if(HAS_MREGION)m=m.filter(x=>sel.regions.has(x.region));const ly=[...new Set(m.map(x=>x.ym))].sort().slice(-1)[0];const mr=ly?m.filter(x=>x.ym===ly):[];v=mr.length?(sel.plat==="SUM"?mr.reduce((s,r)=>s+(r.mau||0),0):mr.filter(x=>x.platform===sel.plat).reduce((s,r)=>s+(r.mau||0),0)):null;}
     return {g,v:v==null?0:v,raw:v};}).sort((a,b)=>b.v-a.v);
   const max=Math.max(...arr.map(a=>a.v),1);const total=arr.reduce((s,a)=>s+a.v,0);
   document.getElementById("rkChartTitle").textContent=`${METRIC_LABEL[sel.metric]} 순위`;
@@ -470,6 +492,7 @@ function renderRank(){
 function renderExportControls(){
   const gc=document.getElementById("exGames");gc.innerHTML="";GAMES.forEach(g=>{const c=document.createElement("span");c.className="chip"+(exState.games.has(g)?" on":"");c.textContent=g;c.onclick=()=>{exState.games.has(g)?exState.games.delete(g):exState.games.add(g);renderExportControls();};gc.appendChild(c);});
   const mc=document.getElementById("exMetrics");mc.innerHTML="";ALL_METRICS.forEach(m=>{const c=document.createElement("span");c.className="chip"+(exState.metrics.has(m)?" on":"");c.textContent=METRIC_LABEL[m]+(m==="mau"?"(월)":"");c.onclick=()=>{exState.metrics.has(m)?exState.metrics.delete(m):exState.metrics.add(m);renderExportControls();};mc.appendChild(c);});
+  renderRegions("exRegions",exState,renderExportControls);
   document.querySelectorAll("#exPlat button").forEach(b=>b.classList.toggle("on",b.dataset.v===exState.plat));
   document.querySelectorAll("#exUnit button").forEach(b=>b.classList.toggle("on",b.dataset.v===exState.unit));
   document.querySelectorAll("#exFmt button").forEach(b=>b.classList.toggle("on",b.dataset.v===exState.fmt));
@@ -478,13 +501,13 @@ function renderExportControls(){
   const md=allDates();document.getElementById("exFrom").min=md[0];document.getElementById("exFrom").max=md.slice(-1)[0];document.getElementById("exTo").min=md[0];document.getElementById("exTo").max=md.slice(-1)[0];
   buildExportPreview();
 }
-function exportRows(){ // returns {labels, perGame:{game:{label:{plat:{rev,dau,dl}}}}}
+function exportRows(){
   const games=[...exState.games].filter(g=>GAMES.includes(g)).sort((a,b)=>a===OWN_GAME?-1:b===OWN_GAME?1:a.localeCompare(b,"ko"));
   const unit=exState.unit;const dates=allDates().filter(d=>d>=exState.from&&d<=exState.to);
   const labels=[...new Set(dates.map(d=>bucketKey(d,unit)))].sort();
-  const idx=new Map();DAILY.forEach(r=>idx.set(r.date+"|"+r.game+"|"+r.platform,r));
+  const regs=[...exState.regions];
   const data={};games.forEach(g=>{const acc={};labels.forEach(l=>acc[l]={iOS:{rev:0,dau:0,dl:0,nr:0,na:0,nd:0},AOS:{rev:0,dau:0,dl:0,nr:0,na:0,nd:0}});
-    dates.forEach(dt=>{const k=bucketKey(dt,unit);["iOS","AOS"].forEach(p=>{const r=idx.get(dt+"|"+g+"|"+p);if(!r)return;const a=acc[k][p];if(r.revenue!=null){a.rev+=r.revenue;a.nr++;}if(r.dau!=null){a.dau+=r.dau;a.na++;}if(r.downloads!=null){a.dl+=r.downloads;a.nd++;}});});
+    dates.forEach(dt=>{const k=bucketKey(dt,unit);["iOS","AOS"].forEach(p=>{let rev=null,dau=null,dl=null;regs.forEach(rg=>{const r=DMAP[dt+"|"+g+"|"+p+"|"+rg];if(r){rev=sumN(rev,r.revenue);dau=sumN(dau,r.dau);dl=sumN(dl,r.downloads);}});const a=acc[k][p];if(rev!=null){a.rev+=rev;a.nr++;}if(dau!=null){a.dau+=dau;a.na++;}if(dl!=null){a.dl+=dl;a.nd++;}});});
     data[g]=acc;});
   return {games,labels,data};
 }
